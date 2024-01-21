@@ -14,7 +14,19 @@ class BooksSpider(scrapy.Spider):
 
     def parse_book(self, response):
         # Extract the information from the book's page
+        stars_path = response.xpath('//p[contains(@class, "star-rating")]/@class').get()
+        stars_split = stars_path.split()
+
+        tbl_dict = {}
+
+        tbl_rows = response.xpath('//*[@id="content_inner"]/article/table/tr')
+        for row in tbl_rows:
+            th_value = row.xpath('.//th/text()').get()
+            if th_value in ('UPC', 'Price (excl. tax)', 'Price (incl. tax)', 'Availability'):
+                tbl_dict[th_value] = row.xpath('.//td/text()').get()
+
         yield {
             'title': response.xpath('//div[contains(@class, "product_main")]/h1/text()').get(),
-            # Add more fields here as needed
+            'stars': stars_split[1],
+            **tbl_dict
         }
