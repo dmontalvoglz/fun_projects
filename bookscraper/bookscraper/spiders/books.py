@@ -1,4 +1,5 @@
 import scrapy
+import re
 
 class BooksSpider(scrapy.Spider):
     name = "books"
@@ -12,6 +13,10 @@ class BooksSpider(scrapy.Spider):
             # Send a request to each book's URL
             yield response.follow(book_url, self.parse_book)
 
+        next_page = response.xpath('//li[@class="next"]/a/@href').get()
+        if next_page is not None:
+            yield response.follow(next_page, self.parse)
+
     def parse_book(self, response):
         # Extract the information from the book's page
         stars_path = response.xpath('//p[contains(@class, "star-rating")]/@class').get()
@@ -22,8 +27,18 @@ class BooksSpider(scrapy.Spider):
         tbl_rows = response.xpath('//*[@id="content_inner"]/article/table/tr')
         for row in tbl_rows:
             th_value = row.xpath('.//th/text()').get()
-            if th_value in ('UPC', 'Price (excl. tax)', 'Price (incl. tax)', 'Availability'):
-                tbl_dict[th_value] = row.xpath('.//td/text()').get()
+            match th_value:
+                case 'UPC':
+                    tbl_dict[th_value] = row.xpath('.//td/text()').get()
+                case 'Price (excl. tax)':
+                    tbl_dict['Price(notax)'] = row.xpath('.//td/text()').get()
+                case 'Price (incl. tax)':
+                    tbl_dict['Price(tax)'] = row.xpath('.//td/text()').get()
+                case 'Availability':
+                    raw_string = row.xpath('.//td/text()').get()
+                    reg_pattern = re.search(r'\((.*?)\)', raw_string)
+                    stock_extracted = reg_pattern.group(1)
+                    tbl_dict[th_value] = stock_extracted
 
         yield {
             'title': response.xpath('//div[contains(@class, "product_main")]/h1/text()').get(),
