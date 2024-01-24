@@ -1,5 +1,6 @@
 import scrapy
 import re
+from bookscraper.items import BookItem
 
 class BooksSpider(scrapy.Spider):
     name = "books"
@@ -22,6 +23,7 @@ class BooksSpider(scrapy.Spider):
         stars_path = response.xpath('//p[contains(@class, "star-rating")]/@class').get()
         stars_split = stars_path.split()
 
+        book = BookItem()
         tbl_dict = {}
 
         tbl_rows = response.xpath('//*[@id="content_inner"]/article/table/tr')
@@ -29,19 +31,19 @@ class BooksSpider(scrapy.Spider):
             th_value = row.xpath('.//th/text()').get()
             match th_value:
                 case 'UPC':
-                    tbl_dict[th_value] = row.xpath('.//td/text()').get()
+                    tbl_dict['UPC'] = row.xpath('.//td/text()').get()
                 case 'Price (excl. tax)':
-                    tbl_dict['Price(notax)'] = row.xpath('.//td/text()').get()
+                    tbl_dict['price_notax'] = row.xpath('.//td/text()').get()
                 case 'Price (incl. tax)':
-                    tbl_dict['Price(tax)'] = row.xpath('.//td/text()').get()
+                    tbl_dict['price_tax'] = row.xpath('.//td/text()').get()
                 case 'Availability':
                     raw_string = row.xpath('.//td/text()').get()
                     reg_pattern = re.search(r'\((.*?)\)', raw_string)
                     stock_extracted = reg_pattern.group(1)
-                    tbl_dict[th_value] = stock_extracted
+                    tbl_dict['availability'] = stock_extracted
 
-        yield {
-            'title': response.xpath('//div[contains(@class, "product_main")]/h1/text()').get(),
-            'stars': stars_split[1],
-            **tbl_dict
-        }
+        book['title'] = response.xpath('//div[contains(@class, "product_main")]/h1/text()').get()
+        book['stars'] = stars_split[1]
+        book.update(tbl_dict)
+
+        yield book
